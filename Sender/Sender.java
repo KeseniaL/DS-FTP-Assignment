@@ -136,84 +136,96 @@ public class Sender {
             }
         }
     }
-}
 
-//Stop and Wait Sender implementation
-private static int runStopandWaitSender(DatagramSocket sendSocket, DatagramSocket ackSocket, InetAddress rcvAddr, int rcvDataPrt, String inputFile){
-    // dealing with an empty file case: after handshaking, send EOR with Seq=1 immediately. 
-    File f = new File(inputFile);
-    if (!f.exists()|| !f.isFile()){
-        System.err.println("Error: input_file not found:"+ inputFile);
-        return -1;
-    }
-    if (f.length()==0){
-        return 0; // if last dtat in sequence is 0 i.e., no data, eotSeq becomes 1
-    }
 
-    int seq = 1; //first DATA packet uses Seq=1
-    int lastDataSeq = 0;
+    //Stop and Wait Sender implementation
+    private static int runStopandWaitSender(DatagramSocket sendSocket, DatagramSocket ackSocket, InetAddress rcvAddr, int rcvDataPrt, String inputFile){
+        // dealing with an empty file case: after handshaking, send EOR with Seq=1 immediately. 
+        File f = new File(inputFile);
+        if (!f.exists()|| !f.isFile()){
+            System.err.println("Error: input_file not found:"+ inputFile);
+            return -1;
+        }
+        if (f.length()==0){
+            return 0; // if last dtat in sequence is 0 i.e., no data, eotSeq becomes 1
+        }
 
-    try (InputStream in = new BufferedInputStream(new FileInputStream(f))){
-        byte[] chunk = new byte[DSPacket.MAX_PAYLOAD_SIZE];
+        int seq = 1; //first DATA packet uses Seq=1
+        int lastDataSeq = 0;
 
-        while (true) { 
-            int read = in.read(chunk);
-            if (read == -1) break;
-
-            byte[] payload = new byte[read];
-            System.arraycopy(chunk,0,payload,0, read);
-
-            DSPacket dataPkt = new DSPacket(DSPacket.TYPE_DATA, seq, payload);
-
-            int consecutiveTimeoutsSamePkt = 0;
+        try (InputStream in = new BufferedInputStream(new FileInputStream(f))){
+            byte[] chunk = new byte[DSPacket.MAX_PAYLOAD_SIZE];
 
             while (true) { 
-                try {
-                    sendPacket(sendSocket, rcvAddr, rcvDataPrt, dataPkt);
-                    System.out.println("SEND DATA seq=" + seq + "len=" + read);
+                int read = in.read(chunk);
+                if (read == -1) break;
 
-                    DSPacket ack = receivePacket(ackSocket);
-                    if (ack.getType()== DSPacket.TYPE_ACK && ack.getSeqNum() == seq){
-                        System.err.println("RCV ACK seq=" + seq);
-                        lastDataSeq = seq;
-                        seq = (seq+1) % 128;
-                        break;
+                byte[] payload = new byte[read];
+                System.arraycopy(chunk,0,payload,0, read);
+
+                DSPacket dataPkt = new DSPacket(DSPacket.TYPE_DATA, seq, payload);
+
+                int consecutiveTimeoutsSamePkt = 0;
+
+                while (true) { 
+                    try {
+                        sendPacket(sendSocket, rcvAddr, rcvDataPrt, dataPkt);
+                        System.out.println("SEND DATA seq=" + seq + "len=" + read);
+
+                        DSPacket ack = receivePacket(ackSocket);
+                        if (ack.getType()== DSPacket.TYPE_ACK && ack.getSeqNum() == seq){
+                            System.err.println("RCV ACK seq=" + seq);
+                            lastDataSeq = seq;
+                            seq = (seq+1) % 128;
+                            break;
+                        }
+                    } catch (SocketTimeoutException te) {
+                        consecutiveTimeoutsSamePkt ++;
+                        System.err.println("TIMEOUT seq="+ seq + " (count =" + consecutiveTimeoutsSamePkt+ ")");
+                        if(consecutiveTimeoutsSamePkt >= 3){
+                            return -1; //critical failure;
+                        }
+                        //get ready to retransmit same seq
                     }
-                } catch (SocketTimeoutException te) {
-                    consecutiveTimeoutsSamePkt ++;
-                    System.err.println("TIMEOUT seq="+ seq + " (count =" + consecutiveTimeoutsSamePkt+ ")");
-                    if(consecutiveTimeoutsSamePkt >= 3){
-                        return -1; //critical failure;
-                    }
-                    //get ready to retransmit same seq
                 }
             }
+            return lastDataSeq;
+        } catch (IOException e){
+            System.err.println("File/IO error:" + e.getMessage());
+            return -1;
         }
-        return lastDataSeq;
-    } catch (IOException e){
-        System.err.println("File/IO error:" + e.getMessage());
-        return -1;
     }
-}
 
-//packet send and receive helper function implementations
-private static void sendPacket(DatagramSocket sock, InetAddress addr, int port, DSPacket p) throws IOException {
-    byte[] raw = p.toBytes();
-    DatagramPacket dp = new DatagramPacket(raw, raw.length, addr, port);
-    sock.send(dp);
-}
-private static DSPacket receivePacket(DatagramSocket sock) throws IOException{
-    byte[] buf = new byte[PACKET_SIZE];
-    DatagramPacket dp = new DatagramPacket(buf, buf.length);
-    sock.receive(dp);
-    return new DSPacket(dp.getData());
-}
-//parsing helper function
-private static int ParsePort(String s, String name){
-    int v = parsePositiveInt(s,name);
-    if (v < 1 || v > 65535){
-        System.err.println("Error:" + name + "must be 1...65535");
-        System.exit(1);
+    //packet send and receive helper function implementations
+    private static void sendPacket(DatagramSocket sock, InetAddress addr, int port, DSPacket p) throws IOException {
+        byte[] raw = p.toBytes();
+        DatagramPacket dp = new DatagramPacket(raw, raw.length, addr, port);
+        sock.send(dp);
     }
-    return v;
+    private static DSPacket receivePacket(DatagramSocket sock) throws IOException{
+        byte[] buf = new byte[PACKET_SIZE];
+        DatagramPacket dp = new DatagramPacket(buf, buf.length);
+        sock.receive(dp);
+        return new DSPacket(dp.getData());
+    }
+    //parsing helper function
+    private static int ParsePort(String s, String name){
+        int v = parsePositiveInt(s,name);
+        if (v < 1 || v > 65535){
+            System.err.println("Error:" + name + "must be 1...65535");
+            System.exit(1);
+        }
+        return v;
+    }
+    private static int parsePositiveInt(String s, String name){
+        try {
+        int v = Integer.parseInt(s);
+        if (v <=0) throw new NumberFormatException();
+        return v; 
+        } catch (NumberFormatException e) {
+            System.err.println("Error:" + name + "must be a positive integer.");
+            System.exit(1);
+            return -1;
+        }
+    }
 }
