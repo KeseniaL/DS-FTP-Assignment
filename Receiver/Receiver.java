@@ -9,7 +9,7 @@ import java.net.*;
  - handling reliability on the receiver side:
       -stop n wait only accept expected seq, ignore duplicates, resend last ACK
       - go back n (later): buffer out-of-order + send cumulative ACKs
- - using ChaosEngine to simulate ACK loss (drop every RNth ACK)
+ - using ChaosEngine to simulate ACK loss (drop every RNth ack)
 */
 
 public class Receiver {
