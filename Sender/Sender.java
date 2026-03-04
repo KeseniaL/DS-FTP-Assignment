@@ -18,9 +18,11 @@ public class Sender {
     public static void main(String[] args) {
 
         // syntax:
-        // java Sender <rcv_ip> <rcv_data_port> <sender_ack_port> <input_file> <timeout_ms> [window_size]
+        // java Sender <rcv_ip> <rcv_data_port> <sender_ack_port> <input_file>
+        // <timeout_ms> [window_size]
         if (args.length != 5 && args.length != 6) {
-            System.err.println("Usage: java Sender <rcv_ip> <rcv_data_port> <sender_ack_port> <input_file> <timeout_ms> [window_size]");
+            System.err.println(
+                    "Usage: java Sender <rcv_ip> <rcv_data_port> <sender_ack_port> <input_file> <timeout_ms> [window_size]");
             System.exit(1);
         }
 
@@ -58,7 +60,7 @@ public class Sender {
         // - sendSocket: sends SOT/DATA/EOT to receiver data port
         // - ackSocket: listens on sender_ack_port for ACKs
         try (DatagramSocket sendSocket = new DatagramSocket();
-             DatagramSocket ackSocket = new DatagramSocket(sndrAckPrt)) {
+                DatagramSocket ackSocket = new DatagramSocket(sndrAckPrt)) {
 
             // timeout triggers retransmission
             ackSocket.setSoTimeout(timeoutMS);
@@ -113,7 +115,7 @@ public class Sender {
 
     // handshake: send SOT, wait for ACK0, timeout -> resend, 3 timeouts -> fail
     private static boolean doHandshake(DatagramSocket sendSocket, DatagramSocket ackSocket,
-                                       InetAddress rcvAddr, int rcvDataPrt) {
+            InetAddress rcvAddr, int rcvDataPrt) {
         int consecutiveTimeouts = 0;
 
         DSPacket sot = new DSPacket(DSPacket.TYPE_SOT, 0, new byte[0]);
@@ -137,7 +139,8 @@ public class Sender {
             } catch (SocketTimeoutException te) {
                 consecutiveTimeouts++;
                 System.out.println("TIMEOUT waiting for SOT ACK (count=" + consecutiveTimeouts + ")");
-                if (consecutiveTimeouts >= 3) return false;
+                if (consecutiveTimeouts >= 3)
+                    return false;
             } catch (IOException ioe) {
                 System.err.println("Handshake IO error: " + ioe.getMessage());
                 return false;
@@ -145,9 +148,10 @@ public class Sender {
         }
     }
 
-    // teardown: send EOT, wait for ACK(eotSeq), timeout -> resend, 3 timeouts -> fail
+    // teardown: send EOT, wait for ACK(eotSeq), timeout -> resend, 3 timeouts ->
+    // fail
     private static boolean doTeardownEOT(DatagramSocket sendSocket, DatagramSocket ackSocket,
-                                         InetAddress rcvAddr, int rcvDataPrt, int eotSeq) {
+            InetAddress rcvAddr, int rcvDataPrt, int eotSeq) {
         int consecutiveTimeouts = 0;
 
         DSPacket eot = new DSPacket(DSPacket.TYPE_EOT, eotSeq, new byte[0]);
@@ -169,7 +173,8 @@ public class Sender {
             } catch (SocketTimeoutException te) {
                 consecutiveTimeouts++;
                 System.out.println("TIMEOUT waiting for EOT ACK (count=" + consecutiveTimeouts + ")");
-                if (consecutiveTimeouts >= 3) return false;
+                if (consecutiveTimeouts >= 3)
+                    return false;
             } catch (IOException ioe) {
                 System.err.println("Teardown IO error: " + ioe.getMessage());
                 return false;
@@ -185,7 +190,8 @@ public class Sender {
     - 3 timeouts on same packet -> fail
     - return lastDataSeq on success
     */
-    private static int runStopandWaitSender(DatagramSocket sendSocket, DatagramSocket ackSocket,InetAddress rcvAddr, int rcvDataPrt, String inputFile) {
+    private static int runStopandWaitSender(DatagramSocket sendSocket, DatagramSocket ackSocket, InetAddress rcvAddr,
+            int rcvDataPrt, String inputFile) {
 
         File f = new File(inputFile);
 
@@ -195,7 +201,8 @@ public class Sender {
             return -1;
         }
 
-        // empty file case -> no DATA packets; lastDataSeq treated as 0 so EOT seq becomes 1
+        // empty file case -> no DATA packets; lastDataSeq treated as 0 so EOT seq
+        // becomes 1
         if (f.length() == 0) {
             return 0;
         }
@@ -208,7 +215,8 @@ public class Sender {
 
             while (true) {
                 int read = in.read(chunk);
-                if (read == -1) break;
+                if (read == -1)
+                    break;
 
                 // exact payload size (final chunk can be < 124)
                 byte[] payload = new byte[read];
@@ -256,12 +264,14 @@ public class Sender {
             return -1;
         }
     }
+
     // send helper (DSPacket.toBytes() is always 128 bytes)
     private static void sendPacket(DatagramSocket sock, InetAddress addr, int port, DSPacket p) throws IOException {
         byte[] raw = p.toBytes();
         DatagramPacket dp = new DatagramPacket(raw, raw.length, addr, port);
         sock.send(dp);
     }
+
     // receive helper (always read 128 bytes)
     private static DSPacket receivePacket(DatagramSocket sock) throws IOException {
         byte[] buf = new byte[PACKET_SIZE];
@@ -269,6 +279,7 @@ public class Sender {
         sock.receive(dp);
         return new DSPacket(dp.getData());
     }
+
     // parsing helper for ports
     private static int parsePort(String s, String name) {
         int v = parsePositiveInt(s, name);
@@ -278,11 +289,13 @@ public class Sender {
         }
         return v;
     }
+
     // parsing helper for timeout/window/etc
     private static int parsePositiveInt(String s, String name) {
         try {
             int v = Integer.parseInt(s);
-            if (v <= 0) throw new NumberFormatException();
+            if (v <= 0)
+                throw new NumberFormatException();
             return v;
         } catch (NumberFormatException e) {
             System.err.println("Error: " + name + " must be a positive integer.");
@@ -291,4 +304,3 @@ public class Sender {
         }
     }
 }
-

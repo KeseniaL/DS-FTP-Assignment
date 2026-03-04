@@ -15,7 +15,8 @@ import java.net.*;
 public class Receiver {
     public static void main(String[] args) throws Exception {
         // syntax:
-        // java Receiver <sender_ip> <sender_ack_port> <rcv_data_port> <output_file> <RN>
+        // java Receiver <sender_ip> <sender_ack_port> <rcv_data_port> <output_file>
+        // <RN>
         if (args.length != 5) {
             System.out.println("Usage: java Receiver <sender_ip> <sender_ack_port> <rcv_data_port> <output_file> <RN>");
             return;
@@ -91,7 +92,7 @@ public class Receiver {
 
     // ACK sender with chaos factor
     private static int sendACkWithChaos(DatagramSocket sock, InetAddress senderAddr, int senderAckPort,
-                                        int ackSeq, int rn, int ackCount) throws IOException {
+            int ackSeq, int rn, int ackCount) throws IOException {
         int newAckCount = ackCount + 1;
 
         // FIX: newAckCount variable name
