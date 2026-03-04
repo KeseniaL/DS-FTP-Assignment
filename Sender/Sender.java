@@ -266,6 +266,8 @@ public class Sender {
     private static int runGBNSender(DatagramSocket sendSocket, DatagramSocket ackSocket,
             InetAddress rcvAddr, int rcvDataPrt,
             String inputFile, int windowSze) {
+        // preparation and file chunking
+        // this makes it read the entire file into memory at once
         java.util.List<DSPacket> allPackets;
         try {
             allPackets = Util.chunkFileIntoPackets(inputFile);
@@ -278,25 +280,32 @@ public class Sender {
             return 0; // Empty file special case
         }
 
-        int baseIdx = 0;
-        int nextIdx = 0;
-        int n = allPackets.size();
-        int consecutiveTimeouts = 0;
+        // this is the start of the GBN algorithm
+        int baseIdx = 0; // base of the window
+        int nextIdx = 0; // next packet to be sent
+        int n = allPackets.size(); // total number of packets
+        int consecutiveTimeouts = 0; // consecutive timeouts
 
+        // this is the main loop of the GBN algorithm
+        // it will run as long as the base of the window is less than the total number
+        // of packets
         while (baseIdx < n) {
-            // Send packets while inside window
+            // send packets while inside window
             while (nextIdx < baseIdx + windowSze && nextIdx < n) {
                 java.util.List<DSPacket> group = new java.util.ArrayList<>();
                 int groupLimit = Math.min(n, baseIdx + windowSze);
                 int packetsLeft = groupLimit - nextIdx;
                 int toSend = Math.min(4, packetsLeft);
 
+                // this is the group of packets that will be sent
                 for (int i = 0; i < toSend; i++) {
                     group.add(allPackets.get(nextIdx + i));
                 }
 
+                // this is the permuted group of packets that will be sent
                 java.util.List<DSPacket> permuted = ChaosEngine.permutePackets(group);
 
+                // this is the loop that will send the permuted group of packets
                 for (DSPacket p : permuted) {
                     try {
                         sendPacket(sendSocket, rcvAddr, rcvDataPrt, p);
@@ -305,9 +314,17 @@ public class Sender {
                         return -1;
                     }
                 }
+
+                // this is where we increment the next index
                 nextIdx += toSend;
             }
 
+            // this is where we wait for the ACK that will slide the window forward to the
+            // next base
+            // if we receive an ACK for a packet that is not in the window, we ignore it
+            // if we receive an ACK for a packet that is in the window, we slide the window
+            // forward to the next base
+            // if we receive a timeout, we slide the window forward to the next base
             try {
                 DSPacket ack = receivePacket(ackSocket);
                 if (ack.getType() == DSPacket.TYPE_ACK) {
