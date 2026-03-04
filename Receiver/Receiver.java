@@ -50,16 +50,15 @@ public class Receiver {
             // ignore anything else til SOT comes
         }
 
-        // P2: Receive loop
+        // Receive loop
         // We will call our new GBN Receiver by default, as it handles both
-        // Stop-And-Wait and GBN seamlessly!
+        // Stop-And-Wait and GBN seamlessly
         ackCount = runGBNReceiver(rcvSocket, senderAddr, sndrAckPrt, outputFile, rn, ackCount);
 
         rcvSocket.close();
     }
 
-    // Person 1's Original Stop-and-Wait Receiver (Kept here for reference /
-    // testing)
+    // Stop-and-Wait Receiver (Kept here for reference /
     @SuppressWarnings("unused")
     private static int runStopAndWaitReceiver(DatagramSocket rcvSocket, InetAddress senderAddr,
             int sndrAckPrt, String outputFile, int rn, int ackCount) throws Exception {
