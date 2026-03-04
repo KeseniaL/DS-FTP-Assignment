@@ -97,8 +97,7 @@ public class Sender {
 
             // P3: Teardown (EOT)
             if (!doTeardownEOT(sendSocket, ackSocket, rcvAddr, rcvDataPrt, eotSeq)) {
-                System.out.println("Unable to transfer file.");
-                return;
+                System.out.println("EOT Teardown failed but transfer completed.");
             }
 
             // print timing

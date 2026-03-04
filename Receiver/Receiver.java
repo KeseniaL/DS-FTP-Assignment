@@ -85,6 +85,8 @@ public class Receiver {
                 } else if (p.getType() == DSPacket.TYPE_EOT) {
                     ackCount = sendACkWithChaos(rcvSocket, senderAddr, sndrAckPrt, p.getSeqNum(), rn, ackCount);
                     break;
+                } else if (p.getType() == DSPacket.TYPE_SOT) {
+                    ackCount = sendACkWithChaos(rcvSocket, senderAddr, sndrAckPrt, 0, rn, ackCount);
                 }
             }
         }
@@ -123,7 +125,7 @@ public class Receiver {
                         int ackSeq = (expectedSeq - 1 + 128) % 128;
                         ackCount = sendACkWithChaos(rcvSocket, senderAddr, sndrAckPrt, ackSeq, rn, ackCount);
 
-                    } else if (dist < 128 && dist > 0) {
+                    } else if (dist < 64 && dist > 0) {
                         // Out-of-order within range (dist > 0 ensures it's not a duplicate currently
                         // expected)
                         if (!arrived[seq]) {
@@ -133,11 +135,19 @@ public class Receiver {
                         // Re-send cumulative ACK
                         int ackSeq = (expectedSeq - 1 + 128) % 128;
                         ackCount = sendACkWithChaos(rcvSocket, senderAddr, sndrAckPrt, ackSeq, rn, ackCount);
+                    } else {
+                        // Older duplicate (already received). Must re-send cumulative ACK
+                        // to unblock the Sender if its ACK was dropped!
+                        int ackSeq = (expectedSeq - 1 + 128) % 128;
+                        ackCount = sendACkWithChaos(rcvSocket, senderAddr, sndrAckPrt, ackSeq, rn, ackCount);
                     }
                 } else if (p.getType() == DSPacket.TYPE_EOT) {
                     // Teardown
                     ackCount = sendACkWithChaos(rcvSocket, senderAddr, sndrAckPrt, p.getSeqNum(), rn, ackCount);
                     break;
+                } else if (p.getType() == DSPacket.TYPE_SOT) {
+                    // Sender's SOT ACK was dropped, resend it
+                    ackCount = sendACkWithChaos(rcvSocket, senderAddr, sndrAckPrt, 0, rn, ackCount);
                 }
             }
         }
