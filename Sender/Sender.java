@@ -83,10 +83,8 @@ public class Sender {
                 lastDataSeq = runStopandWaitSender(sendSocket, ackSocket, rcvAddr, rcvDataPrt, inputFile);
                 ok = (lastDataSeq >= 0);
             } else {
-                // Person 2 will implement later
-                System.out.println("[TODO] ADD IN GBN SENDER IMPLEMENTATION");
-                ok = false;
-                lastDataSeq = -1;
+                lastDataSeq = runGBNSender(sendSocket, ackSocket, rcvAddr, rcvDataPrt, inputFile, windowSze);
+                ok = (lastDataSeq >= 0);
             }
 
             if (!ok) {
@@ -263,6 +261,82 @@ public class Sender {
             System.err.println("File/IO error: " + e.getMessage());
             return -1;
         }
+    }
+
+    private static int runGBNSender(DatagramSocket sendSocket, DatagramSocket ackSocket,
+            InetAddress rcvAddr, int rcvDataPrt,
+            String inputFile, int windowSze) {
+        java.util.List<DSPacket> allPackets;
+        try {
+            allPackets = Util.chunkFileIntoPackets(inputFile);
+        } catch (IOException e) {
+            System.err.println("File error: " + e.getMessage());
+            return -1;
+        }
+
+        if (allPackets.isEmpty()) {
+            return 0; // Empty file special case
+        }
+
+        int baseIdx = 0;
+        int nextIdx = 0;
+        int n = allPackets.size();
+        int consecutiveTimeouts = 0;
+
+        while (baseIdx < n) {
+            // Send packets while inside window
+            while (nextIdx < baseIdx + windowSze && nextIdx < n) {
+                java.util.List<DSPacket> group = new java.util.ArrayList<>();
+                int groupLimit = Math.min(n, baseIdx + windowSze);
+                int packetsLeft = groupLimit - nextIdx;
+                int toSend = Math.min(4, packetsLeft);
+
+                for (int i = 0; i < toSend; i++) {
+                    group.add(allPackets.get(nextIdx + i));
+                }
+
+                java.util.List<DSPacket> permuted = ChaosEngine.permutePackets(group);
+
+                for (DSPacket p : permuted) {
+                    try {
+                        sendPacket(sendSocket, rcvAddr, rcvDataPrt, p);
+                        System.out.println("SEND DATA seq=" + p.getSeqNum() + " len=" + p.getLength());
+                    } catch (IOException e) {
+                        return -1;
+                    }
+                }
+                nextIdx += toSend;
+            }
+
+            try {
+                DSPacket ack = receivePacket(ackSocket);
+                if (ack.getType() == DSPacket.TYPE_ACK) {
+                    int ackSeq = ack.getSeqNum();
+                    int baseSeq = allPackets.get(baseIdx).getSeqNum();
+                    int dist = Util.seqDist(ackSeq, baseSeq);
+                    int unackedCount = nextIdx - baseIdx;
+
+                    if (dist >= 0 && dist < unackedCount) {
+                        System.out.println("RCV ACK seq=" + ackSeq);
+                        baseIdx += (dist + 1);
+                        consecutiveTimeouts = 0;
+                    }
+                }
+            } catch (SocketTimeoutException te) {
+                int baseSeq = allPackets.get(baseIdx).getSeqNum();
+                consecutiveTimeouts++;
+                System.out.println("TIMEOUT seq=" + baseSeq + " (count=" + consecutiveTimeouts + ")");
+
+                if (consecutiveTimeouts >= 3) {
+                    return -1;
+                }
+                nextIdx = baseIdx;
+            } catch (IOException e) {
+                return -1;
+            }
+        }
+
+        return allPackets.get(n - 1).getSeqNum();
     }
 
     // send helper (DSPacket.toBytes() is always 128 bytes)
