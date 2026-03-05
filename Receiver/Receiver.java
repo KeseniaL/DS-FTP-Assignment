@@ -30,18 +30,18 @@ public class Receiver {
 
         InetAddress senderAddr = InetAddress.getByName(senderIp);
 
-        // Set up socket: receiver listens on rcvDataPrt for SOT/DATA/EOT from sender.
-        // Receiver sends ACKs back to senderAddr:sndrAckPrt
+        // set up socket: receiver listens on rcvDataPrt for SOT/DATA/EOT from sender.
+        // receiver sends ACKs back to senderAddr:sndrAckPrt
         DatagramSocket rcvSocket = new DatagramSocket(rcvDataPrt);
 
-        // ACK counter (ChaosEngine uses this to decide when to drop)
+        // ack counter (ChaosEngine uses this to decide when to drop)
         int ackCount = 0;
 
         // P1: Handshake
         while (true) {
             DSPacket p = recvDSPacket(rcvSocket);
 
-            // FIX: DSPacket has getSeqNum(), not getSeq()
+        
             if (p.getType() == DSPacket.TYPE_SOT && p.getSeqNum() == 0) {
                 // after getting SOT: send ACK0 (this might get dropped by chaos)
                 ackCount = sendACkWithChaos(rcvSocket, senderAddr, sndrAckPrt, 0, rn, ackCount);
@@ -50,15 +50,15 @@ public class Receiver {
             // ignore anything else til SOT comes
         }
 
-        // Receive loop
-        // We will call our new GBN Receiver by default, as it handles both
-        // Stop-And-Wait and GBN seamlessly
+        // receive loop
+        // we will call our new GBN Receiver by default, as it handles both
+        // stop-n-wait and GBN seamlessly
         ackCount = runGBNReceiver(rcvSocket, senderAddr, sndrAckPrt, outputFile, rn, ackCount);
 
         rcvSocket.close();
     }
 
-    // Stop-and-Wait Receiver (Kept here for reference /
+    // stop-and-Wait Receiver (Kept here for reference /
     @SuppressWarnings("unused")
     private static int runStopAndWaitReceiver(DatagramSocket rcvSocket, InetAddress senderAddr,
             int sndrAckPrt, String outputFile, int rn, int ackCount) throws Exception {
@@ -93,7 +93,7 @@ public class Receiver {
         return ackCount;
     }
 
-    // Go-Back-N Receiver (Universal)
+    // GBN Receiver (Universal)
     private static int runGBNReceiver(DatagramSocket rcvSocket, InetAddress senderAddr,
             int sndrAckPrt, String outputFile, int rn, int ackCount) throws Exception {
         int expectedSeq = 1;
@@ -109,11 +109,11 @@ public class Receiver {
                     int dist = Util.seqDist(seq, expectedSeq);
 
                     if (dist == 0) {
-                        // In-order packet
+                        // in-order packet
                         out.write(p.getPayload());
                         expectedSeq = Util.inc(expectedSeq);
 
-                        // Deliver buffered packets that are now in-order
+                        // deliver buffered packets that are now in-order (necessdary)
                         while (arrived[expectedSeq]) {
                             out.write(buffer[expectedSeq]);
                             arrived[expectedSeq] = false; // consume
@@ -121,32 +121,32 @@ public class Receiver {
                         }
                         out.flush();
 
-                        // Send cumulative ACK (which is expectedSeq - 1)
+                        // send cumulative ACK (which is expectedSeq - 1)
                         int ackSeq = (expectedSeq - 1 + 128) % 128;
                         ackCount = sendACkWithChaos(rcvSocket, senderAddr, sndrAckPrt, ackSeq, rn, ackCount);
 
                     } else if (dist < 64 && dist > 0) {
-                        // Out-of-order within range (dist > 0 ensures it's not a duplicate currently
+                        // out-of-order within range (dist > 0 ensures it's not a duplicate currently
                         // expected)
                         if (!arrived[seq]) {
                             arrived[seq] = true;
                             buffer[seq] = p.getPayload();
                         }
-                        // Re-send cumulative ACK
+                        // re-send cumulative ACK
                         int ackSeq = (expectedSeq - 1 + 128) % 128;
                         ackCount = sendACkWithChaos(rcvSocket, senderAddr, sndrAckPrt, ackSeq, rn, ackCount);
                     } else {
-                        // Older duplicate (already received). Must re-send cumulative ACK
-                        // to unblock the Sender if its ACK was dropped!
+                        // older duplicate (already received). has to  re-send cumulative ack
+                        // to unblock the Sender if its ACK was dropped
                         int ackSeq = (expectedSeq - 1 + 128) % 128;
                         ackCount = sendACkWithChaos(rcvSocket, senderAddr, sndrAckPrt, ackSeq, rn, ackCount);
                     }
                 } else if (p.getType() == DSPacket.TYPE_EOT) {
-                    // Teardown
+                    // teardown :/
                     ackCount = sendACkWithChaos(rcvSocket, senderAddr, sndrAckPrt, p.getSeqNum(), rn, ackCount);
                     break;
                 } else if (p.getType() == DSPacket.TYPE_SOT) {
-                    // Sender's SOT ACK was dropped, resend it
+                    // sender's SOT ACK was dropped, resend it
                     ackCount = sendACkWithChaos(rcvSocket, senderAddr, sndrAckPrt, 0, rn, ackCount);
                 }
             }
@@ -154,12 +154,12 @@ public class Receiver {
         return ackCount;
     }
 
-    // ACK sender with chaos factor
+    // ack sender with chaos factor
     private static int sendACkWithChaos(DatagramSocket sock, InetAddress senderAddr, int senderAckPort,
             int ackSeq, int rn, int ackCount) throws IOException {
         int newAckCount = ackCount + 1;
 
-        // FIX: newAckCount variable name
+        //newAckCount variable name
         if (ChaosEngine.shouldDrop(newAckCount, rn)) {
             // simulate ACK loss (don't send anything)
             return newAckCount;

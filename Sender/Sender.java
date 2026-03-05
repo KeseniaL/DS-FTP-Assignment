@@ -29,7 +29,7 @@ public class Sender {
         // setting up argument parameters
         String rcvIp = args[0];
         int rcvDataPrt = parsePort(args[1], "rcv_data_port");
-        int sndrAckPrt = parsePort(args[2], "sender_ack_port"); // FIX: was args[1]
+        int sndrAckPrt = parsePort(args[2], "sender_ack_port"); 
         String inputFile = args[3];
         int timeoutMS = parsePositiveInt(args[4], "timeout_ms");
 
@@ -157,7 +157,7 @@ public class Sender {
             try {
                 // send EOT
                 sendPacket(sendSocket, rcvAddr, rcvDataPrt, eot);
-                System.out.println("SEND EOT seq=" + eotSeq); // FIX: removed extra "0"
+                System.out.println("SEND EOT seq=" + eotSeq); 
 
                 // wait for ACK(eotSeq)
                 DSPacket ack = receivePacket(ackSocket);
@@ -276,7 +276,7 @@ public class Sender {
         }
 
         if (allPackets.isEmpty()) {
-            return 0; // Empty file special case
+            return 0; // empty file special case
         }
 
         // this is the start of the GBN algorithm
